@@ -10,7 +10,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 VERSION = 15
 
-XFORM_OP_TRANSLATE_TYPE_TOKEN = UsdGeom.XformOp.GetOpTypeToken(UsdGeom.XformOp.TypeTranslate)
+XFORM_OP_TRANSLATE_TYPE_TOKEN = UsdGeom.XformOp.GetOpTypeToken(
+    UsdGeom.XformOp.TypeTranslate)
 XFORM_OP_TRANSLATE_ATTR_NAME = "xformOp:" + XFORM_OP_TRANSLATE_TYPE_TOKEN
 
 
@@ -18,7 +19,6 @@ def get_prim_transform(prim,
                        with_pivot,
                        xform_cache=None,
                        time_code=Usd.TimeCode.Default()):
-
     """Returns a prim's local transformation, converting mesh points into parent-space coords.
     with_pivot=True: returns GetLocalTransformation, where pivot and pivot^-1 are included into the translation.
     with_pivot=False will set translation to the actual translate XformOp.
@@ -53,14 +53,15 @@ def get_prim_transform(prim,
     return mat
 
 
-
-
-
-
-def set_prim_transform(prim, mat, 
+# UNUSED FUNCTION
+def set_prim_transform(prim, mat,
                        sdf_change_block=1,
                        time_code=Usd.TimeCode.Default()):
     """sdf_change_block: 0: don't use, 1: use locally, 2: assume already began"""
+
+    ### NEW ###
+    raise RuntimeError("UNUSED")
+    ###  END NEW ###
 
     stage = prim.GetStage()
 
@@ -77,7 +78,6 @@ def set_prim_transform(prim, mat,
             if sdf_change_block == 1:
                 Sdf.EndChangeBlock()
             return
-
 
     def get_or_add(op_type, prec):
         type_token = UsdGeom.XformOp.GetOpTypeToken(op_type)
@@ -98,7 +98,6 @@ def set_prim_transform(prim, mat,
             Sdf.BeginChangeBlock()
         return op
 
-
     # not a transform: decompose matrix and set various S,R,T as needed
     _, _, scale, rot_mat, trans, _ = mat.Factor()
     rot_mat.Orthonormalize(False)
@@ -106,11 +105,11 @@ def set_prim_transform(prim, mat,
     new_ops = []
 
     # translation
-    op = get_or_add(UsdGeom.XformOp.TypeTranslate, UsdGeom.XformOp.PrecisionDouble)
+    op = get_or_add(UsdGeom.XformOp.TypeTranslate,
+                    UsdGeom.XformOp.PrecisionDouble)
     if op:
         _set_xform_op_time_code(op, trans, time_code, stage)
         new_ops.append(op)
-        
 
     # scale/rotate pivot (a translate)
     pivot_op = None
@@ -121,7 +120,6 @@ def set_prim_transform(prim, mat,
         if pivot_op:
             new_ops.append(pivot_op)
 
-
     # rotation: pick first type
     rot_type, rot_prec = UsdGeom.XformOp.TypeRotateXYZ, UsdGeom.XformOp.PrecisionFloat
     for op in ops:
@@ -130,24 +128,24 @@ def set_prim_transform(prim, mat,
             rot_type, rot_prec = op_type, op.GetPrecision()
             break
 
-
     def rot_get_or_add(rot_type,
                        axis_0, axis_1, axis_2,
                        x, y, z,
                        rot_prec
                        ):
         angles = rot.Decompose(axis_0, axis_1, axis_2)
-        rot_vals = Gf.Vec3f(angles[x], angles[y], angles[z])  # unscramble to x,y,z order that op.Set() needs
+        # unscramble to x,y,z order that op.Set() needs
+        rot_vals = Gf.Vec3f(angles[x], angles[y], angles[z])
         op = get_or_add(rot_type, rot_prec)
         if op:
             _set_xform_op_time_code(op, rot_vals, time_code, stage)
             new_ops.append(op)
 
-
     # single rotation?
     if rot_type >= UsdGeom.XformOp.TypeRotateX and rot_type <= UsdGeom.XformOp.TypeRotateZ:
 
-        angles = rot.Decompose(Gf.Vec3d.ZAxis(), Gf.Vec3d.YAxis(), Gf.Vec3d.XAxis())
+        angles = rot.Decompose(
+            Gf.Vec3d.ZAxis(), Gf.Vec3d.YAxis(), Gf.Vec3d.XAxis())
 
         op = get_or_add(UsdGeom.XformOp.TypeRotateX, rot_prec)
         if op:
@@ -228,15 +226,12 @@ def set_prim_transform(prim, mat,
                 new_ops.append(op)
                 break
 
-
     # and finally set new ops into xform
     xform.SetXformOpOrder(new_ops, xform.GetResetXformStack())
 
-    if sdf_change_block == 1:
-        Sdf.EndChangeBlock()
-
-
-
+    # Was this here only to make sure editing context is always close before returning?
+    # if sdf_change_block == 1:
+    #     Sdf.EndChangeBlock()
 
 
 """
@@ -270,16 +265,7 @@ def touch_prim_xform(prim,
 """
 
 
-
-
-
-
-
-
-
-
-
-def get_prim_translation(prim, 
+def get_prim_translation(prim,
                          time_code=Usd.TimeCode.Default()):
 
     # remove pivot from local transform
@@ -295,71 +281,81 @@ def get_prim_translation(prim,
     return Gf.Vec3d(0.)
 
 
-
 def set_prim_translation(prim, trans,
                          sdf_change_block=1,
                          time_code=Usd.TimeCode.Default()):
     """sdf_change_block: 0: don't use, 1: use locally, 2: assume already began"""
     # print(prim.GetPath().pathString)
 
-    mat_op = trans_op = None
-    xform = UsdGeom.Xformable(prim)
-    for op in xform.GetOrderedXformOps():
-        op_type = op.GetOpType()
-        if op_type == UsdGeom.XformOp.TypeTransform:
-            mat_op = op
-            break
-        elif op_type == UsdGeom.XformOp.TypeTranslate and not is_pivot_xform_op_name_suffix(op.GetOpName()):  # op.SplitName()
-            # simple translation, not pivot/invert
-            trans_op = op
-            break
+    if sdf_change_block != 2:
+        raise RuntimeError("Unexpected behavior")
+
+    with Sdf.ChangeBlock():
+        mat_op = trans_op = None
+        xform = UsdGeom.Xformable(prim)
+        for op in xform.GetOrderedXformOps():
+            op_type = op.GetOpType()
+            if op_type == UsdGeom.XformOp.TypeTransform:
+                mat_op = op
+                break
+            # op.SplitName()
+            elif op_type == UsdGeom.XformOp.TypeTranslate and not is_pivot_xform_op_name_suffix(op.GetOpName()):
+                # simple translation, not pivot/invert
+                trans_op = op
+                break
 
     if mat_op:  # has matrix op
         if sdf_change_block == 1:
+            # never used
             Sdf.BeginChangeBlock()
+        with Sdf.ChangeBlock():
+            mat = Gf.Matrix4d()
+            mat.SetTranslate(trans)
 
-        mat = Gf.Matrix4d()
-        mat.SetTranslate(trans)
-
-        stage = prim.GetStage()
-        _set_xform_op_time_code(mat_op, mat, time_code, stage)
+            stage = prim.GetStage()
+            _set_xform_op_time_code(mat_op, mat, time_code, stage)
 
     else:  # set or add a translation xform op
-        stage = prim.GetStage()
+        with Sdf.ChangeBlock():
+            stage = prim.GetStage()
 
         # can't just set attr as order might not have been set
         if not trans_op:
-            if sdf_change_block == 2:
-                Sdf.EndChangeBlock()
+            # if sdf_change_block == 2:
+            #     Sdf.EndChangeBlock()
 
-            trans_op = _prepend_xform_op(xform, 
+            trans_op = _prepend_xform_op(xform,
                                          UsdGeom.XformOp.TypeTranslate,
                                          get_xform_op_precision(trans),
                                          time_code, stage)
 
-            if sdf_change_block == 2:
-                Sdf.BeginChangeBlock()
+            # if sdf_change_block == 2:
+            #     Sdf.BeginChangeBlock()
 
         if sdf_change_block == 1:
+            # never used
             Sdf.BeginChangeBlock()
 
-        _set_xform_op_time_code(trans_op, trans, time_code, stage)
+        with Sdf.ChangeBlock():
+            _set_xform_op_time_code(trans_op, trans, time_code, stage)
 
     if sdf_change_block == 1:
+        # never used
         Sdf.EndChangeBlock()
 
 
-
-def set_prim_translation_fast(prim, trans, 
+# NEVER USED
+def set_prim_translation_fast(prim, trans,
                               sdf_change_block=1,
                               time_code=Usd.TimeCode.Default()):
-
     """
     As set_translation() but won't copy time samples from weaker layers.
 
     sdf_change_block: 0: don't use, 1: use locally, 2: assume already began
     see: https://graphics.pixar.com/usd/release/api/class_sdf_change_block.html
     """
+
+    raise RuntimeError("Never used")
 
     if prim.HasAttribute("xformOp:mat"):  # has matrix op
         if sdf_change_block == 1:
@@ -384,7 +380,7 @@ def set_prim_translation_fast(prim, trans,
 
             stage = prim.GetStage()
             xform = UsdGeom.Xformable(prim)
-            op = _prepend_xform_op(xform, 
+            op = _prepend_xform_op(xform,
                                    UsdGeom.XformOp.TypeTranslate,
                                    get_xform_op_precision(trans),
                                    time_code, stage)
@@ -404,16 +400,6 @@ def set_prim_translation_fast(prim, trans,
         Sdf.EndChangeBlock()
 
 
-
-
-
-
-
-
-
-
-
-
 def _set_xform_op_time_code(xform_op, value, time_code, stage):
 
     prev = xform_op.Get(time_code)
@@ -423,7 +409,8 @@ def _set_xform_op_time_code(xform_op, value, time_code, stage):
 
     if prev is None:
         if not time_code.IsDefault():
-            omni.usd.copy_timesamples_from_weaker_layer(stage, xform_op.GetAttr())
+            omni.usd.copy_timesamples_from_weaker_layer(
+                stage, xform_op.GetAttr())
 
         xform_op.Set(value, time_code)
 
@@ -431,10 +418,10 @@ def _set_xform_op_time_code(xform_op, value, time_code, stage):
         value_type = type(prev)  # to preserve existing value type
 
         if not time_code.IsDefault():
-            omni.usd.copy_timesamples_from_weaker_layer(stage, xform_op.GetAttr())
+            omni.usd.copy_timesamples_from_weaker_layer(
+                stage, xform_op.GetAttr())
 
         xform_op.Set(value_type(value), time_code)
-
 
 
 def _prepend_xform_op(xform, op_type, prec, time_code, stage):
@@ -450,7 +437,7 @@ def _prepend_xform_op(xform, op_type, prec, time_code, stage):
     for op in prev_ops:
         suffix = get_xform_op_name_suffix(op.GetOpName())
         inverse = op.IsInverseOp()
-        new = xform.AddXformOp(op.GetOpType(), op.GetPrecision(), 
+        new = xform.AddXformOp(op.GetOpType(), op.GetPrecision(),
                                suffix,
                                inverse)
         if not inverse:
@@ -463,14 +450,11 @@ def _prepend_xform_op(xform, op_type, prec, time_code, stage):
     return new_op
 
 
-
 def get_xform_op_precision(t):
     if isinstance(t, Gf.Matrix4d) or isinstance(t, Gf.Vec3d):
         return UsdGeom.XformOp.PrecisionDouble
     else:
         return UsdGeom.XformOp.PrecisionFloat
-
-
 
 
 def get_vec3_type_for_matrix4(mat):
@@ -488,11 +472,6 @@ def make_vec3_for_matrix4(mat, x, y=None, z=None):
         return t(x, y, z)
 
 
-
-
-
-
-
 def _get_xform_op_order(xform):
     out = ""
     for op in xform.GetOrderedXformOps():
@@ -508,7 +487,7 @@ def is_xform_op_name_inverse(op_name):
 
 
 def get_xform_op_name_suffix(op_name):
-    # or 
+    # or
     if is_xform_op_name_inverse(op_name):
         op_name = op_name.split(XFORM_OP_INVERSE_PREFIX, 1)[1]
 
@@ -532,7 +511,6 @@ def is_pivot_xform_op_name_suffix(op_name):
         return False
 
 
-
 def create_edit_context(path, stage):
     """Unsafe from threading? No issues so far:
     https://graphics.pixar.com/usd/release/api/class_usd_edit_context.html#details
@@ -545,4 +523,3 @@ def create_edit_context(path, stage):
         return Usd.EditContext(stage, Usd.EditTarget(layer))
     else:
         return Usd.EditContext(stage)
-

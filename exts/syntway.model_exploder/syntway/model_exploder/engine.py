@@ -1,4 +1,5 @@
-import asyncio, copy
+import asyncio
+import copy
 
 import carb
 
@@ -19,8 +20,8 @@ import omni.kit.notification_manager as nm
 from omni.usd.commands import TransformPrimCommand, TransformPrimSRTCommand
 
 from .libs.usd_helper import UsdHelper
-from .libs.usd_utils import (set_prim_translation, set_prim_translation_fast, 
-                             set_prim_transform, get_prim_transform, 
+from .libs.usd_utils import (set_prim_translation, set_prim_translation_fast,
+                             set_prim_transform, get_prim_transform,
                              get_prim_translation, create_edit_context)
 from .libs.viewport_helper import ViewportHelper
 
@@ -40,11 +41,14 @@ class Engine():
         self.meshes_base_aabb = Gf.Range3d()
 
         self._meshes = []
-        
+
         self._dist = 0
-        self._center_mode = get_setting_or(const.SETTINGS_PATH + const.CENTER_MODE_SETTING, const.DEFAULT_CENTER_MODE)        
-        self._dist_mult = get_setting_or(const.SETTINGS_PATH + const.DIST_MULT_SETTING, const.DEFAULT_DIST_MULT)
-        self._order_accel = get_setting_or(const.SETTINGS_PATH + const.ACCEL_SETTING, const.ACCEL_DEFAULT)
+        self._center_mode = get_setting_or(
+            const.SETTINGS_PATH + const.CENTER_MODE_SETTING, const.DEFAULT_CENTER_MODE)
+        self._dist_mult = get_setting_or(
+            const.SETTINGS_PATH + const.DIST_MULT_SETTING, const.DEFAULT_DIST_MULT)
+        self._order_accel = get_setting_or(
+            const.SETTINGS_PATH + const.ACCEL_SETTING, const.ACCEL_DEFAULT)
 
         self._explo_center = Gf.Vec3d(0)
         self._last_explo_center = Gf.Vec3d(0)
@@ -61,9 +65,8 @@ class Engine():
         self._app.add_update_event_fn(self._on_update)
 
         stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-        self._timeline_sub = stream.create_subscription_to_pop(self._on_timeline_event)
-
-
+        self._timeline_sub = stream.create_subscription_to_pop(
+            self._on_timeline_event)
 
     def destroy(self):
         self._apply_cancel()
@@ -71,9 +74,10 @@ class Engine():
         self._timeline_sub = None
 
         self._recalc_changed_needed.clear()
-        
+
         if self.usd:
-            self.usd.remove_stage_objects_changed_fn(self._on_stage_objects_changed)
+            self.usd.remove_stage_objects_changed_fn(
+                self._on_stage_objects_changed)
             self.usd.detach()
             self.usd = None
 
@@ -83,21 +87,18 @@ class Engine():
 
         Engine._instance = None
 
-
-
-
     def reset(self, set_to_initial):
         self._apply_cancel()
 
         if set_to_initial and self.dist > 0:  # if dist is 0, nothing to do
-            self._apply(-2, self._explo_center, self._meshes)  # returns prims to initial's
+            # returns prims to initial's
+            self._apply(-2, self._explo_center, self._meshes)
 
         self._meshes.clear()
         self._dist = 0
 
-        self.usd.remove_stage_objects_changed_fn(self._on_stage_objects_changed)
-
-
+        self.usd.remove_stage_objects_changed_fn(
+            self._on_stage_objects_changed)
 
     def _on_update(self, _):
 
@@ -117,15 +118,14 @@ class Engine():
 
                     meshes = copy.copy(self._meshes)
 
-                    self._apply_task = asyncio.ensure_future(self._async_apply(dist, explo_center, meshes))
+                    self._apply_task = asyncio.ensure_future(
+                        self._async_apply(dist, explo_center, meshes))
                 # else still applying last
 
             else:
                 self._apply_needed = False
-                self._apply(-1, self._explo_center, self._meshes)  # returns prims to initial's
-
-
-
+                # returns prims to initial's
+                self._apply(-1, self._explo_center, self._meshes)
 
     def _on_stage_objects_changed(self, notice):
 
@@ -138,7 +138,8 @@ class Engine():
             return
 
         # set filters  out duplicate path property changes
-        changed_paths = set(Sdf.Path.GetAbsoluteRootOrPrimPath(i) for i in notice.GetChangedInfoOnlyPaths())
+        changed_paths = set(Sdf.Path.GetAbsoluteRootOrPrimPath(i)
+                            for i in notice.GetChangedInfoOnlyPaths())
 
         # print("_on_stage_objects_changed", changed_paths)
 
@@ -155,17 +156,12 @@ class Engine():
                 if path.startswith(ch_path):
                     self._recalc_changed_needed.add(path)
 
-
-
     def _on_timeline_event(self, e):
         # print("engine:_on_timeline_event", e.type)
 
         if self.has_meshes:
             if e.type == int(omni.timeline.TimelineEventType.CURRENT_TIME_CHANGED):
                 self._ignore_next_objects_changed = 1
-
-
-
 
     AVOID_CHILDREN_PRIM_TYPES = ["Camera"]  # avoid recursion on these
 
@@ -190,7 +186,8 @@ class Engine():
                 list.append(prim)
             return
 
-        if prim.IsA(UsdGeom.PointInstancer) or prim.IsA(UsdSkel.Root):  # instance, SkelRoot: add but don't recurse inside
+        # instance, SkelRoot: add but don't recurse inside
+        if prim.IsA(UsdGeom.PointInstancer) or prim.IsA(UsdSkel.Root):
             list.append(prim)
             return
 
@@ -202,10 +199,8 @@ class Engine():
             for c in children:
                 Engine._traverse_add_prim(list, c)
 
-
-
     def _sel_get_prim_paths_parent_first_order(self, paths):
-        
+
         stage = self.usd.stage
 
         prims = []
@@ -219,23 +214,20 @@ class Engine():
 
         return u_prims
 
-
-
     def sel_capture(self, paths=None):
-        
+
         # print("sel_capture")
         if paths is None:
             paths = self.usd.get_selected_prim_paths()
         # print("_sel_capture", paths)
-        
+
         u_prims = self._sel_get_prim_paths_parent_first_order(paths)
 
         self._meshes = []
-        self._dist = 0        
+        self._dist = 0
 
         if len(u_prims) < 2:
             return False
-
 
         time_code = self.usd.timecode
 
@@ -265,13 +257,12 @@ class Engine():
             # print(path, "local", lbb, lcent, ltrans, "world", wbb, wbb_aa, wtrans, lmat)
 
             # prim, prim_path, untransformed/local mid, world_mid, initial_local_translation
-            entry = {"prim": prim, "path": path, "ini_wtrans": wtrans, "ldelta": ldelta, "ini_lmat": lmat}
+            entry = {"prim": prim, "path": path, "ini_wtrans": wtrans,
+                     "ldelta": ldelta, "ini_lmat": lmat}
             self._meshes.append(entry)
             # print(entry)
-            
+
             self._explo_center += wtrans
-
-
 
         # centroid and base AA bounds
         self._explo_center /= len(u_prims)
@@ -283,9 +274,7 @@ class Engine():
         size = aa_bounds.GetSize()
         self._dist_base_size = max(size[0], size[1], size[2]) * 0.5
 
-
         self._calc_dist_order()
-
 
         # print(time_code, self._explo_center, self._dist_base_size)
 
@@ -294,9 +283,6 @@ class Engine():
 
         # print("sel_capture end")
         return True
-
-
-
 
     def _recalc_changed(self, ch_paths):
 
@@ -324,7 +310,7 @@ class Engine():
                 # calc dir
                 w_dir = new_wtrans - self._explo_center
                 w_dir = self._calc_normalized_dir(w_dir)
-                
+
                 new_ini_wtrans = new_wtrans - w_dir * dist
 
                 p["ini_wtrans"] = new_ini_wtrans
@@ -335,17 +321,8 @@ class Engine():
 
         self._calc_dist_order()
 
-
-
-
-
-
-
-
-
     def apply_asap(self):
         self._apply_needed = True
-
 
     def _apply_cancel(self):
         if APPLY_ASYNC:
@@ -354,13 +331,9 @@ class Engine():
                     return
                 self._apply_task.cancel()
 
-
     async def _async_apply(self, dist_value, explo_center, meshes):
         self._apply(dist_value, explo_center, meshes)
         self._apply_task = None
-
-
-
 
     def _apply(self, dist, explo_center, meshes):
         """dist: -2: reset to stored initial pos, -1: use current self._dist, >=0: 0..1"""
@@ -372,18 +345,15 @@ class Engine():
 
         time_code = self.usd.timecode
 
-        changes = self._prepare_apply_state(dist, explo_center, meshes, time_code, True)
+        changes = self._prepare_apply_state(
+            dist, explo_center, meshes, time_code, True)
 
         is_reset = dist == -2
         state = (is_reset, changes, time_code)
-        
+
         Engine.apply_state(state, self.usd.stage, self)
 
         # print("_apply end")
-
-
-
-
 
     def _prepare_apply_state(self, dist, explo_center, meshes, time_code, with_prims):
         """dist: -2: reset to stored initial pos, -1: use current self._dist, >=0: 0..1"""
@@ -404,7 +374,7 @@ class Engine():
 
         for mp in meshes:
 
-            prim = mp["prim"]            
+            prim = mp["prim"]
             if not prim.IsValid():  # avoid any invalidated prims, deleted for example
                 # print("skipping", prim)
                 continue
@@ -414,7 +384,7 @@ class Engine():
             ldelta = mp["ldelta"]
             prim = mp["prim"]
             dist_order = mp["dist_order"]
-            
+
             if dist_factor >= 0:
                 # calc world pos
                 # calc dir
@@ -442,8 +412,7 @@ class Engine():
                 # local trans, in parent space coords
                 ltrans = (dest_ltrans[0], dest_ltrans[1], dest_ltrans[2])
 
-                #print(prim, dest_w_trans, ltrans)
-
+                # print(prim, dest_w_trans, ltrans)
 
             else:
                 ltrans = mp["ini_lmat"]
@@ -454,9 +423,6 @@ class Engine():
                 changes.append((None, path, ltrans))
 
         return changes
-
-
-
 
     @staticmethod
     def apply_state(state, stage, instance):
@@ -479,11 +445,37 @@ class Engine():
                                                 time_code=time_code)
                 cmd.do()
             """
-            
+
             stage = stage
             sdf_change_block = 2
-            Sdf.BeginChangeBlock()
 
+            # Sdf.BeginChangeBlock()
+            # for ch in changes:
+            #     prim, path, lmat = ch
+            #     if prim is None:
+            #         prim = stage.GetPrimAtPath(path)
+            #     # print(prim, ltrans)
+
+            #     with create_edit_context(path, stage):
+            #         set_prim_translation(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+            #         #set_prim_translation_fast(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+            # Sdf.EndChangeBlock()
+
+            # ### NEW ###
+            # with Sdf.ChangeBlock():
+
+            #     for ch in changes:
+            #         prim, path, lmat = ch
+            #         if prim is None:
+            #             prim = stage.GetPrimAtPath(path)
+            #         # print(prim, ltrans)
+
+            #         with create_edit_context(path, stage):
+            #             set_prim_translation(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+            #             #set_prim_translation_fast(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+            # ### END NEW ###
+
+            ### NEW2 ###
             for ch in changes:
                 prim, path, lmat = ch
                 if prim is None:
@@ -491,10 +483,10 @@ class Engine():
                 # print(prim, ltrans)
 
                 with create_edit_context(path, stage):
-                    set_prim_translation(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
-                    #set_prim_translation_fast(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
-
-            Sdf.EndChangeBlock()
+                    set_prim_translation(
+                        prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+                    # set_prim_translation_fast(prim, lmat, sdf_change_block=sdf_change_block, time_code=time_code)
+            ### END NEW2 ###
 
         else:
 
@@ -512,31 +504,28 @@ class Engine():
 
         # print("apply_state end")
 
-
-
-
-
     def commit(self):
 
         time_code = self.usd.timecode
 
         dist = -2
-        changes = self._prepare_apply_state(dist, self._explo_center, self._meshes, time_code, False)
+        changes = self._prepare_apply_state(
+            dist, self._explo_center, self._meshes, time_code, False)
         is_reset = dist == -2
         initial_state = (is_reset, changes, time_code)
 
         dist = -1
-        changes = self._prepare_apply_state(dist, self._explo_center, self._meshes, time_code, False)
+        changes = self._prepare_apply_state(
+            dist, self._explo_center, self._meshes, time_code, False)
         is_reset = dist == -2
         final_state = (is_reset, changes, time_code)
-
 
         self._ignore_next_objects_changed = 2
 
         stage = self.usd.stage
-        omni.kit.commands.execute("ExplodeEngineApplyCommand", 
-                                  initial_state=initial_state, 
-                                  final_state=final_state, 
+        omni.kit.commands.execute("ExplodeEngineApplyCommand",
+                                  initial_state=initial_state,
+                                  final_state=final_state,
                                   stage=stage)
 
         self._ignore_next_objects_changed = 0
@@ -581,18 +570,10 @@ class Engine():
         self._ignore_next_objects_changed = 0
         """
 
-
-
-
-
-
-
-
     def _calc_dist(self, dist):
         dist = dist ** const.DIST_EXP
         dist = dist * self._dist_base_size * self._dist_mult
         return dist
-
 
     def _calc_dir(self, dir):
         if self._center_mode >= 1 and self._center_mode <= 3:  # around axis: zero axis displacement
@@ -602,7 +583,6 @@ class Engine():
             dir[i] = 0.
             dir[(i + 1) % 3] = 0.
 
-
     def _calc_normalized_dir(self, dir):
         self._calc_dir(dir)
 
@@ -610,7 +590,6 @@ class Engine():
             dir.Normalize()
 
         return dir
-
 
     def _calc_dist_order(self):
         """dist_order is the 0..1 position of the mesh with regard to _explo_center"""
@@ -636,13 +615,7 @@ class Engine():
         for mp in self._meshes:
             order = (len_list[index] - min_len) / max_min_range
             mp["dist_order"] = order
-            index+=1
-
-
-
-
-
-
+            index += 1
 
     @property
     def has_meshes(self):
@@ -658,7 +631,6 @@ class Engine():
         u_prims = self._sel_get_prim_paths_parent_first_order(paths)
         return len(u_prims)
 
-
     @property
     def center(self):
         return self._explo_center
@@ -669,7 +641,7 @@ class Engine():
         self._calc_dist_order()
         self.apply_asap()
 
-    @property    
+    @property
     def dist(self):
         return self._dist
 
@@ -678,8 +650,6 @@ class Engine():
         self._dist = d
         self.apply_asap()
 
-
-
     @property
     def center_mode(self):
         return self._center_mode
@@ -687,7 +657,8 @@ class Engine():
     @center_mode.setter
     def center_mode(self, c):
         self._center_mode = c
-        set_setting(const.SETTINGS_PATH + const.CENTER_MODE_SETTING, self._center_mode)
+        set_setting(const.SETTINGS_PATH +
+                    const.CENTER_MODE_SETTING, self._center_mode)
         self.apply_asap()
 
     @property
@@ -697,7 +668,8 @@ class Engine():
     @order_accel.setter
     def order_accel(self, v):
         self._order_accel = v
-        set_setting(const.SETTINGS_PATH + const.ACCEL_SETTING, self._order_accel)
+        set_setting(const.SETTINGS_PATH +
+                    const.ACCEL_SETTING, self._order_accel)
         self.apply_asap()
 
     @property
@@ -707,10 +679,9 @@ class Engine():
     @dist_mult.setter
     def dist_mult(self, m):
         self._dist_mult = m
-        set_setting(const.SETTINGS_PATH + const.DIST_MULT_SETTING, self._dist_mult)
+        set_setting(const.SETTINGS_PATH +
+                    const.DIST_MULT_SETTING, self._dist_mult)
         self.apply_asap()
-
-
 
     def recenter(self):
         self._explo_center = self._last_explo_center
@@ -718,9 +689,3 @@ class Engine():
 
     def is_centered(self):
         return Gf.IsClose(self._explo_center, self._last_explo_center, 1e-6)
-
-
-
-
-
-
